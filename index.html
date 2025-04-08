@@ -1,240 +1,61 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Previsor de Números da Roleta</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-  <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #f5f7fa;
-    }
-    .container {
-      max-width: 900px;
-      margin: 40px auto;
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    }
-    h1, h2 {
-      text-align: center;
-      color: #2c3e50;
-    }
-    label, button {
-      display: block;
-      margin: 15px 0 5px;
-    }
-    input[type="file"], textarea, select, button {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-    }
-    button {
-      background-color: #2c3e50;
-      color: white;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #34495e;
-    }
-    canvas {
-      max-width: 100%;
-      margin-top: 20px;
-    }
-    #output, #charts, #ia-prediction {
-      margin-top: 30px;
-    }
-    .hidden {
-      display: none;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Previsor de Roleta - 100% Web</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: auto; padding: 20px; }
+        h1 { color: #333; }
+        input[type="file"] { margin-top: 10px; }
+        #output, #resultados { margin-top: 20px; }
+        img { max-width: 100%; margin-top: 10px; }
+        .loading { color: green; font-weight: bold; }
+    </style>
 </head>
 <body>
-  <div class="container" id="content">
     <h1>Previsor de Números da Roleta</h1>
-    <label for="inputType">Escolha a entrada:</label>
-    <select id="inputType" onchange="toggleInput(this.value)">
-      <option value="image">Imagem (JPEG/PNG)</option>
-      <option value="manual">Entrada manual</option>
-      <option value="textfile">Arquivo .txt</option>
-    </select>
-
-    <div id="imageInput">
-      <label>Enviar imagem:</label>
-      <input type="file" accept="image/*" onchange="handleImage(this)">
-    </div>
-
-    <div id="manualInput" class="hidden">
-      <label>Digite os números (separados por vírgula):</label>
-      <textarea rows="4" placeholder="ex: 7, 13, 20, 8" id="manualNumbers"></textarea>
-      <button onclick="handleManual()">Analisar</button>
-    </div>
-
-    <div id="textfileInput" class="hidden">
-      <label>Enviar arquivo .txt:</label>
-      <input type="file" accept=".txt" onchange="handleTxt(this)">
-    </div>
-
+    <p>Envie uma imagem com números (JPEG):</p>
+    <input type="file" accept="image/*" onchange="handleFile(this)">
     <div id="output"></div>
-    <div id="charts"></div>
-    <div id="ia-prediction"></div>
+    <div id="resultados"></div>
 
-    <button onclick="generatePDF()">Gerar PDF com Análise</button>
-    <button onclick="location.reload()">Resetar</button>
-  </div>
+    <script>
+        function handleFile(input) {
+            const file = input.files[0];
+            if (!file) return;
 
-  <script>
-    let allNumbers = [];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.createElement("img");
+                img.src = e.target.result;
+                document.getElementById("output").innerHTML = '<p class="loading">Lendo imagem e extraindo números...</p>';
+                document.getElementById("output").appendChild(img);
 
-    function toggleInput(type) {
-      document.getElementById("imageInput").classList.add("hidden");
-      document.getElementById("manualInput").classList.add("hidden");
-      document.getElementById("textfileInput").classList.add("hidden");
-      document.getElementById(type + "Input").classList.remove("hidden");
-    }
-
-    function handleImage(input) {
-      const file = input.files[0];
-      if (!file) return;
-      Tesseract.recognize(
-        file, 'eng',
-        { logger: m => console.log(m) }
-      ).then(({ data: { text } }) => {
-        const numbers = extractNumbers(text);
-        allNumbers = numbers;
-        showOutput(numbers);
-      });
-    }
-
-    function handleManual() {
-      const text = document.getElementById("manualNumbers").value;
-      const numbers = extractNumbers(text);
-      allNumbers = numbers;
-      showOutput(numbers);
-    }
-
-    function handleTxt(input) {
-      const file = input.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const numbers = extractNumbers(e.target.result);
-        allNumbers = numbers;
-        showOutput(numbers);
-      };
-      reader.readAsText(file);
-    }
-
-    function extractNumbers(text) {
-      return Array.from(text.matchAll(/\d+/g)).map(m => parseInt(m[0]));
-    }
-
-    function showOutput(numbers) {
-      const out = document.getElementById("output");
-      out.innerHTML = `<h2>Números Lidos:</h2><p>${numbers.join(', ')}</p>`;
-
-      showStats(numbers);
-      showCharts(numbers);
-      runIA(numbers);
-    }
-
-    function showStats(nums) {
-      const freq = {};
-      nums.forEach(n => freq[n] = (freq[n] || 0) + 1);
-
-      const total = nums.length;
-      const sum = nums.reduce((a, b) => a + b, 0);
-      const avg = (sum / total).toFixed(2);
-      const sorted = [...nums].sort((a, b) => a - b);
-      const median = sorted[Math.floor(total / 2)];
-      const mode = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
-      const stddev = Math.sqrt(nums.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / total).toFixed(2);
-
-      document.getElementById("output").innerHTML += `
-        <h2>Análises Estatísticas</h2>
-        <p><strong>Total:</strong> ${total}</p>
-        <p><strong>Média:</strong> ${avg}</p>
-        <p><strong>Mediana:</strong> ${median}</p>
-        <p><strong>Moda:</strong> ${mode}</p>
-        <p><strong>Desvio Padrão:</strong> ${stddev}</p>
-      `;
-    }
-
-    function showCharts(nums) {
-      const freq = {};
-      nums.forEach(n => freq[n] = (freq[n] || 0) + 1);
-      const labels = Object.keys(freq);
-      const data = Object.values(freq);
-
-      const canvas = document.createElement("canvas");
-      document.getElementById("charts").innerHTML = "<h2>Frequência dos Números</h2>";
-      document.getElementById("charts").appendChild(canvas);
-
-      new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{ label: 'Frequência', data, backgroundColor: 'rgba(52, 152, 219,0.6)' }]
+                Tesseract.recognize(
+                    e.target.result,
+                    'eng',
+                    { logger: m => console.log(m) }
+                ).then(({ data: { text } }) => {
+                    const numeros = Array.from(text.matchAll(/\d+/g)).map(n => parseInt(n[0]));
+                    document.getElementById("output").innerHTML = "<p><strong>Números extraídos:</strong><br>" + numeros.join(", ") + "</p>";
+                    mostrarPrevisoes(numeros);
+                });
+            };
+            reader.readAsDataURL(file);
         }
-      });
-    }
 
-    async function runIA(seq) {
-      if (seq.length < 15) {
-        document.getElementById("ia-prediction").innerHTML = "<p>Forneça ao menos 15 números para previsão via IA.</p>";
-        return;
-      }
-
-      const X = [];
-      const Y = [];
-      for (let i = 0; i < seq.length - 5; i++) {
-        X.push(seq.slice(i, i + 5));
-        Y.push(seq[i + 5]);
-      }
-
-      const xs = tf.tensor2d(X);
-      const ys = tf.tensor1d(Y);
-
-      const model = tf.sequential();
-      model.add(tf.layers.dense({ units: 64, activation: 'relu', inputShape: [5] }));
-      model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
-      model.add(tf.layers.dense({ units: 1 }));
-      model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
-
-      await model.fit(xs, ys, { epochs: 40 });
-
-      const lastSeq = seq.slice(-5);
-      const pred = model.predict(tf.tensor2d([lastSeq])).dataSync()[0].toFixed(0);
-
-      document.getElementById("ia-prediction").innerHTML = `
-        <h2>Previsão com IA (LSTM-like)</h2>
-        <p>Próximo número provável: <strong>${pred}</strong></p>
-      `;
-    }
-
-    async function generatePDF() {
-      const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-      const content = document.getElementById("content");
-
-      await html2canvas(content, { scale: 2 }).then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      });
-
-      pdf.save("analise_roleta.pdf");
-    }
-  </script>
+        function mostrarPrevisoes(numeros) {
+            const contagem = {};
+            numeros.forEach(n => contagem[n] = (contagem[n] || 0) + 1);
+            const previsoes = Object.entries(contagem)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(entry => entry[0]);
+            
+            document.getElementById("resultados").innerHTML =
+                "<h3>Top 10 Números Prováveis:</h3><p>" + previsoes.join(", ") + "</p>";
+        }
+    </script>
 </body>
 </html>
