@@ -13,16 +13,24 @@ def capturar_ultimos_resultados(qtd=5):
     if response.status_code != 200:
         st.error("Erro ao acessar a API.")
         return []
-    
+
     todos = response.json()
+    if isinstance(todos, dict):
+        todos = [todos]
+
     concursos = todos[-qtd:]
-    resultados = [
-        {
-            'concurso': c['concurso'],
-            'data': c['data'],
-            'numeros': sorted([int(n) for n in c['numeros']])
-        } for c in concursos
-    ]
+    resultados = []
+    for c in concursos:
+        dezenas = c.get('listaDezenas') or c.get('dezenas') or c.get('numeros')
+        if not dezenas:
+            continue
+
+        resultados.append({
+            'concurso': c.get('concurso', 'N/A'),
+            'data': c.get('data', 'N/A'),
+            'numeros': sorted([int(n) for n in dezenas])
+        })
+
     return resultados
 
 def analisar_concursos(concursos):
